@@ -17,18 +17,22 @@ from livekit.plugins import openai as livekit_openai
 from openai import OpenAI
 import os
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
 from datetime import datetime
 
+import requests
 
 
 load_dotenv(dotenv_path=".env.local")
 logger = logging.getLogger("my-worker")
 logger.setLevel(logging.INFO)
 api_key = os.getenv("OPENAI_API_KEY")
+transcriptUrl = os.getenv('BUBBLE_TRANSCRIPT_ENDPOINT')
+storyUrl = os.getenv('BUBBLE_STORY_ENDPOINT')
+
 if not api_key:
     raise ValueError("OPENAI_API_KEY not found in environment variables. Make sure it is set in .env.local.")
 OpenAI.api_key = api_key
@@ -64,6 +68,9 @@ class TranscriptRequest(BaseModel):
 # FastAPI model for the response
 class StoryResponse(BaseModel):
     chapterId: int
+    story: str
+    
+class StoryRequest(BaseModel):
     story: str
     
 @app.get("/")
@@ -128,6 +135,40 @@ async def main():
         # Catch any errors and return the message
         return {"error": str(e)}
 
+@app.post("/transcript/")
+async def transcript(request: TranscriptRequest):
+    try:
+        logger.info("Passing transcript to bubble")
+        
+        logger.info(f"Request: {request}")
+        
+        # Extract transcript from the request
+        transcript = request.transcript
+        
+        # Data to be sent in the POST request
+        data = {
+            "transcript": transcript
+        }
+
+        # Make the POST request
+        response = requests.post(transcriptUrl, json=data)
+        
+        # Handle the response
+        if response.status_code == 200:
+            logger.info("Request successful")
+            return {"message": "Success", "data": response.json()}
+        else:
+            logger.error(f"Request failed: {response.status_code}, {response.text}")
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Error from server: {response.text}"
+            )
+    except Exception as e:
+        logger.exception("An error occurred")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Error processing request: {str(e)}"
+        )
 
 # Function to create story based on the transcript and user data
 def create_story(user_room_id: str, chapter_id: int, transcript: str, account_id: int, timestamp: datetime) -> str:
@@ -172,8 +213,41 @@ def create_story(user_room_id: str, chapter_id: int, transcript: str, account_id
     )
     
     story = completion.choices[0].message.content
+    
+
 
     return story
+
+@app.post("/story/")
+# Asynchronous function to send story to Bubble
+async def story(request: StoryRequest):
+    
+    logger.info("Passing story to bubble")
+    try:
+        logger.info("Passing story to bubble")
+        logger.info(f"Story: {request.story}")
+        
+        data = {"story": request.story}
+
+        # Make the POST request
+        response = requests.post(transcriptUrl, json=data)
+
+        # Handle the response
+        if response.status_code == 200:
+            logger.info("Request successful")
+            return {"message": "Success", "data": response.json()}
+        else:
+            logger.error(f"Request failed: {response.status_code}, {response.text}")
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Error from server: {response.text}"
+            )
+    except Exception as e:
+        logger.exception("An error occurred")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Error processing request: {str(e)}"
+        )
 
 # FastAPI endpoint to generate story
 @app.post("/generate_story/", response_model=StoryResponse)
@@ -193,8 +267,6 @@ async def generate_story_endpoint(request: TranscriptRequest):
             detail=f"Error processing request: {str(e)}"
         )
 
-
-
 async def entrypoint(ctx: JobContext):
     logger.info(f"connecting to room {ctx.room.name}")
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
@@ -204,7 +276,6 @@ async def entrypoint(ctx: JobContext):
     run_multimodal_agent(ctx, participant)
 
     logger.info("agent started")
-
 
 def run_multimodal_agent(ctx: JobContext, participant: rtc.RemoteParticipant):
     logger.info("starting multimodal agent")
