@@ -214,23 +214,21 @@ def create_story(user_room_id: str, chapter_id: int, transcript: str, account_id
     
     story = completion.choices[0].message.content
     
-
+    story(story)
 
     return story
 
-@app.post("/story/")
-# Asynchronous function to send story to Bubble
-async def story(request: StoryRequest):
+async def story(story: str):
     
     logger.info("Passing story to bubble")
     try:
         logger.info("Passing story to bubble")
-        logger.info(f"Story: {request.story}")
+        logger.info(f"Story: {story}")
         
-        data = {"story": request.story}
+        data = {"story": story}
 
         # Make the POST request
-        response = requests.post(transcriptUrl, json=data)
+        response = requests.post(storyUrl, json=data)
 
         # Handle the response
         if response.status_code == 200:
