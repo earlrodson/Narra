@@ -67,7 +67,7 @@ class TranscriptRequest(BaseModel):
     chapterId: int
     transcript: str
     accountId: int
-    timestamp: datetime
+    timestamp: str
 
 # FastAPI model for the response
 class StoryResponse(BaseModel):
@@ -87,40 +87,44 @@ async def main():
         return {"error": str(e)}
 
 @app.post("/transcript/")
-async def transcript(request: TranscriptRequest):
+async def post_transcript(data: TranscriptRequest):
     try:
-        logger.info("Passing transcript to bubble")
+        logger.info(f"Passing transcript to bubble")
         
-        logger.info(f"Request: {request}")
-        
-        # Extract transcript from the request
-        transcript = request.transcript
-        
-        # Data to be sent in the POST request
-        data = {
-            "transcript": transcript
-        }
-        
-        logger.info(f"data {data}")
+        # Parse the transcript into a list of messages
+        transcript_data = json.loads(data.transcript)
 
-        # Make the POST request
-        response = requests.post(POST_TRANSCRIP_URL, json=data)
+        # Format the transcript data
+        formattedData = ""
+        for entry in transcript_data:
+            message = entry["message"].strip()  # Clean up the message
+            if entry["isSelf"]:
+                # User message
+                formattedData += f"user: {message}\n"
+            else:
+                # Bot message
+                formattedData += f"bot:{message}\n"
         
-        # Handle the response
-        if response.status_code == 200:
-            logger.info("Request successful")
-            return {"message": "Success", "data": response.json()}
-        else:
-            logger.error(f"Request failed: {response.status_code}, {response.text}")
-            raise HTTPException(
-                status_code=response.status_code,
-                detail=f"Error from server: {response.text}"
-            )
-    except Exception as e:
-        logger.exception("An error occurred")
+        logger.info(f"------------ Formatted data: {formattedData}")
+        
+        # Post the data to the other API
+        async with aiohttp.ClientSession() as session:
+            async with session.post(POST_TRANSCRIP_URL, json=data.model_dump()) as response:
+                # Handle the response
+                if response.status == 200:
+                    logger.info("Request successful")
+                    return {"message": "Success", "data": await response.json()}
+                else:
+                    logger.error(f"Request failed: {response.status}, {await response.text()}")
+                    raise HTTPException(
+                        status_code=response.status,
+                        detail=f"Error from server: {await response.text()}"
+                    )
+    except aiohttp.ClientError as e:
+        logger.error(f"Request failed: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Error processing request: {str(e)}"
+            status_code=500,
+            detail=f"Error during request: {str(e)}"
         )
 
 # GET TRANSCRIPT
