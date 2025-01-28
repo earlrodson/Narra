@@ -40,3 +40,4 @@ test_*.xml
 env/
 .env.local
 venv
+.httpYac/

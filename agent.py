@@ -24,14 +24,17 @@ from typing import List
 from datetime import datetime
 
 import requests
+import aiohttp
 
 
 load_dotenv(dotenv_path=".env.local")
+api_key = os.getenv("OPENAI_API_KEY")
+POST_TRANSCRIP_URL = os.getenv('BUBBLE_TRANSCRIPT_ENDPOINT')
+GET_TRANSCRIPT_URL = os.getenv('BUBBLE_GET_TRANSCRIPT_ENDPOINT')
+POST_STORY_URL = os.getenv('BUBBLE_STORY_ENDPOINT')
+
 logger = logging.getLogger("my-worker")
 logger.setLevel(logging.INFO)
-api_key = os.getenv("OPENAI_API_KEY")
-transcriptUrl = os.getenv('BUBBLE_TRANSCRIPT_ENDPOINT')
-storyUrl = os.getenv('BUBBLE_STORY_ENDPOINT')
 
 if not api_key:
     raise ValueError("OPENAI_API_KEY not found in environment variables. Make sure it is set in .env.local.")
@@ -43,6 +46,7 @@ app = FastAPI()
 # CORS settings: Allow requests from localhost:4000
 origins = [
     "http://localhost:4000",  # Frontend URL
+    "*"
 ]
 
 # Add CORS middleware to allow requests from the frontend
@@ -76,61 +80,8 @@ class StoryRequest(BaseModel):
 @app.get("/")
 async def main():
     try:
-        logger.info(f"Story rendering")
-        # Create an OpenAI client
-        client = OpenAI()
-       
-        dataInputs = '''Chapter 1: [{"message":"Bye, Nara.\\n","name":"You","isSelf":true,"timestamp":1737689568306},
-        {"message":"Hello! I'm Narra, your AI storytelling guide.","name":"Agent","isSelf":false,"timestamp":1737689569473},
-        {"message":"I’m here to help you craft and preserve your most treasured memories.","name":"Agent","isSelf":false,"timestamp":1737689572625},
-        {"message":"Let’s embark on this journey together.","name":"Agent","isSelf":false,"timestamp":1737689577216},
-        {"message":"You can skip any question you’re uncomfortable with and pause anytime you wish.","name":"Agent","isSelf":false,"timestamp":1737689580261},
-        {"message":"Ready to begin? Let's start by getting to know a little bit about you.","name":"Agent","isSelf":false,"timestamp":1737689585371},
-        {"message":"Could you tell me your full name, including your middle name?","name":"Agent","isSelf":false,"timestamp":1737689590219},
-        {"message":"If you have a maiden name or have had any other names, feel free to share those too.","name":"Agent","isSelf":false,"timestamp":1737689594290},
-        {"message":"","name":"You","isSelf":true,"timestamp":1737689599817},
-        {"message":"No ...","name":"Agent","isSelf":false,"timestamp":1737689600400},
-        {"message":"My name is Erle Cariño.\\n","name":"You","isSelf":true,"timestamp":1737689602206},
-        {"message":"It's nice to meet you, Earl Cardinal.","name":"Agent","isSelf":false,"timestamp":1737689603244},
-        {"message":"Could you share your birthdate with me?","name":"Agent","isSelf":false,"timestamp":1737689605992},
-        {"message":"And if you're comfortable, I'd love to hear where you were born, including the hospital if you know it.","name":"Agent","isSelf":false,"timestamp":1737689608490}]
-        Story:
-        User said: []
-        User said: [{"message":"Bye, Nara.\\n","name":"You","isSelf":true,"timestamp":1737689568306},
-        {"message":"Hello! I'm Narra, your AI storytelling guide.","name":"Agent","isSelf":false,"timestamp":1737689569473},
-        {"message":"I’m here to help you craft and preserve your most treasured memories.","name":"Agent","isSelf":false,"timestamp":1737689572625},
-        {"message":"Let’s embark on this journey together.","name":"Agent","isSelf":false,"timestamp":1737689577216},
-        {"message":"You can skip any question you’re uncomfortable with and pause anytime you wish.","name":"Agent","isSelf":false,"timestamp":1737689580261},
-        {"message":"Ready to begin? Let's start by getting to know a little bit about you.","name":"Agent","isSelf":false,"timestamp":1737689585371},
-        {"message":"Could you tell me your full name, including your middle name?","name":"Agent","isSelf":false,"timestamp":1737689590219},
-        {"message":"If you have a maiden name or have had any other names, feel free to share those too.","name":"Agent","isSelf":false,"timestamp":1737689594290},
-        {"message":"","name":"You","isSelf":true,"timestamp":1737689599817},
-        {"message":"No ...","name":"Agent","isSelf":false,"timestamp":1737689600400},
-        {"message":"My name is Erle Cariño.\\n","name":"You","isSelf":true,"timestamp":1737689602206},
-        {"message":"It's nice to meet you, Earl Cardinal.","name":"Agent","isSelf":false,"timestamp":1737689603244},
-        {"message":"Could you share your birthdate with me?","name":"Agent","isSelf":false,"timestamp":1737689605992},
-        {"message":"And if you're comfortable, I'd love to hear where you were born, including the hospital if you know it.","name":"Agent","isSelf":false,"timestamp":1737689608490}]'''
-        
-        logger.info(f"story_content generated {dataInputs}")
-
-        # Make a request to the OpenAI API
-        completion = client.chat.completions.create(
-            model="gpt-4-turbo",
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant name Narra that summarize the discussion."},
-                {
-                    "role": "user",
-                    "content": f"Create a summary of the discussion in this text input :\n{dataInputs}, present the input in a nice way. dont include the ai messages in the story. make sure to always use the name of the person involve in the discussion and not display them as users or client or by their role."
-                }
-            ]
-        )
-        
-        story = completion.choices[0].message.content
-        logger.info(f"Story generated {completion}")
-        
-        # Return the generated content
-        return story
-    
+        logger.info(f"Welcome to the Narra API")
+        return { "message": "Welcome to the Narra API" }    
     except Exception as e:
         # Catch any errors and return the message
         return {"error": str(e)}
@@ -149,9 +100,11 @@ async def transcript(request: TranscriptRequest):
         data = {
             "transcript": transcript
         }
+        
+        logger.info(f"data {data}")
 
         # Make the POST request
-        response = requests.post(transcriptUrl, json=data)
+        response = requests.post(POST_TRANSCRIP_URL, json=data)
         
         # Handle the response
         if response.status_code == 200:
@@ -170,6 +123,24 @@ async def transcript(request: TranscriptRequest):
             detail=f"Error processing request: {str(e)}"
         )
 
+# GET TRANSCRIPT
+async def get_transcript():
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(GET_TRANSCRIPT_URL) as response:
+                response.raise_for_status()  # Raise an exception for HTTP errors
+                return await response.json()  # Return the JSON response
+    except aiohttp.ClientResponseError as e:
+        raise HTTPException(
+            status_code=e.status,
+            detail=f"Error fetching transcript: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing request: {str(e)}"
+        )
+        
 # Function to create story based on the transcript and user data
 def create_story(user_room_id: str, chapter_id: int, transcript: str, account_id: int, timestamp: datetime) -> str:
     global conversation_history
@@ -214,11 +185,11 @@ def create_story(user_room_id: str, chapter_id: int, transcript: str, account_id
     
     story = completion.choices[0].message.content
     
-    story(story)
+    save_story(story)
 
     return story
 
-async def story(story: str):
+async def save_story(story: str):
     
     logger.info("Passing story to bubble")
     try:
@@ -228,7 +199,7 @@ async def story(story: str):
         data = {"story": story}
 
         # Make the POST request
-        response = requests.post(storyUrl, json=data)
+        response = requests.post(POST_STORY_URL, json=data)
 
         # Handle the response
         if response.status_code == 200:
@@ -271,36 +242,29 @@ async def entrypoint(ctx: JobContext):
 
     participant = await ctx.wait_for_participant()
 
-    run_multimodal_agent(ctx, participant)
+    await run_multimodal_agent(ctx, participant)
 
     logger.info("agent started")
 
-def run_multimodal_agent(ctx: JobContext, participant: rtc.RemoteParticipant):
+async def run_multimodal_agent(ctx: JobContext, participant: rtc.RemoteParticipant):
     logger.info("starting multimodal agent")
+    
+    # Make the POST request for transcripts/prompts
+    response = await get_transcript()  # Ensure this returns a dict with a string key, e.g., "transcript"
+    
+    if not response:
+        logger.error("No transcript found in response")
+        return
+    
+    logger.info(f"response: {response.get("response", {}).get("generated_prompt_text", "")}")
+
+    instructions = response.get("response", {}).get("generated_prompt_text", "").replace("\n\n", "\n").strip()
+    instructions = instructions.replace("\n", "\n- ")
+    formatted_instructions = f'"""\n{instructions}\n"""'
+    logger.info(f"formatted_instructions: {formatted_instructions}")
 
     model = livekit_openai.realtime.RealtimeModel(
-        instructions = (
-            "Instructions: "
-            "- Start by saying greetings: Hello! I'm Narra, your AI storytelling guide. I’m here to help you craft and preserve your most treasured memories. Let’s embark on this journey together. You can skip any question you’re uncomfortable with and pause anytime you wish. Ready to begin?"
-            "- Ask one question at a time and avoid introducing additional questions within the same response. "
-            "- Once the current question is answered, proceed to the next. "
-            "- Start with general background questions, like the user's name, birthdate, and family history. "
-            "- Allow users to skip any question they prefer not to answer or pause the conversation at any time. "
-            "- When the user indicates the conversation is over, respond with a warm goodbye."
-            "Let's start by getting to know a little bit about you. "
-            "Could you tell me your full name, including your middle name? "
-            "[If feminine name, add:] Do you have a maiden name? "
-            "Have you had any other names in the past? "
-            "What is your birthdate? "
-            "Where were you born? If you know, I'd love to hear which hospital too. "
-            "Where did you grow up? "
-            "Can you tell me your parents' full names? "
-            "Where are they originally from? "
-            "Where was your mother originally from? "
-            "Looking back through your family tree, what's your cultural background? "
-            "Do you have any siblings? If so, can you tell me their names and where they and you fall in birth order? "
-            "I'd love to hear about some of your interests, hobbies, or passions. What kinds of things do you enjoy?"
-        ),
+        instructions = formatted_instructions,
         modalities=["audio", "text"],
     )
     agent = MultimodalAgent(model=model)
@@ -309,9 +273,9 @@ def run_multimodal_agent(ctx: JobContext, participant: rtc.RemoteParticipant):
     session = model.sessions[0]
 
 if __name__ == "__main__":
-    # Run the FastAPI app in the background and the worker
     import threading
     import uvicorn
+    import asyncio  # To manage event loop explicitly
 
     # Run FastAPI in a separate thread
     def run_fastapi():
@@ -319,9 +283,9 @@ if __name__ == "__main__":
 
     threading.Thread(target=run_fastapi, daemon=True).start()
 
-    # Run the worker
-    cli.run_app(
+    # Use asyncio to run the worker and entrypoint asynchronously
+    asyncio.run(cli.run_app(
         WorkerOptions(
-            entrypoint_fnc=entrypoint,
+            entrypoint_fnc=entrypoint,  # Ensure entrypoint is async
         )
-    )
+    ))
