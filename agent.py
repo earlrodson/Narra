@@ -259,14 +259,13 @@ async def run_multimodal_agent(ctx: JobContext, participant: rtc.RemoteParticipa
     
     # Make the POST request for transcripts/prompts
     response = await get_transcript()  # Ensure this returns a dict with a string key, e.g., "transcript"
-    
-    if not response:
+    if not response.get('response', {}):
         logger.error("No transcript found in response")
         return
     
-    logger.info(f"response: {response.get("response", {}).get("generated_prompt_text", "")}")
-
-    instructions = response.get("response", {}).get("generated_prompt_text", "").replace("\n\n", "\n").strip()
+    logger.info(f"response: {response.get('response', {}).get('prompt',{}).get('generated_prompt_text', '')}")
+    generatedPromptText = response.get('response', {}).get('prompt',{}).get('generated_prompt_text', '')
+    instructions = generatedPromptText.replace("\n\n", "\n").strip()
     instructions = instructions.replace("\n", "\n- ")
     formatted_instructions = f'"""\n{instructions}\n"""'
     logger.info(f"formatted_instructions: {formatted_instructions}")
