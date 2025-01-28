@@ -105,11 +105,15 @@ async def post_transcript(data: TranscriptRequest):
                 # Bot message
                 formattedData += f"bot:{message}\n"
         
-        logger.info(f"------------ Formatted data: {formattedData}")
+        logger.info(f"------------Formatted data: {formattedData}")
+        
+        requestData = {
+            "transcript": formattedData
+        }
         
         # Post the data to the other API
         async with aiohttp.ClientSession() as session:
-            async with session.post(POST_TRANSCRIP_URL, json=data.model_dump()) as response:
+            async with session.post(POST_TRANSCRIP_URL, json=requestData) as response:
                 # Handle the response
                 if response.status == 200:
                     logger.info("Request successful")
