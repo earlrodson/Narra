@@ -25,6 +25,7 @@ from datetime import datetime
 
 import requests
 import aiohttp
+import re
 
 
 load_dotenv(dotenv_path=".env.local")
@@ -45,7 +46,8 @@ app = FastAPI()
 
 # CORS settings: Allow requests from localhost:4000
 origins = [
-    "http://localhost:4000",  # Frontend URL
+    "http://localhost:3000",  # Frontend URL
+    "https://app.thymeandtell.com",
     "*"
 ]
 
@@ -132,8 +134,22 @@ async def post_transcript(data: TranscriptRequest):
         )
 
 # GET TRANSCRIPT
-async def get_transcript():
+async def get_transcript(ctx: JobContext):
     try:
+        ctx_room = ctx.room.name
+        room_pattern = r"^voice_assistant_room_(\d+x\d+)_(\d+x\d+)$"
+        match = re.match(room_pattern, ctx_room)
+
+        if match:
+            uid = match.group(1)
+            cid = match.group(2)
+            print('uid:', uid)
+            print('cid:', cid)
+        else:
+            raise ValueError("Invalid room format")
+        
+        logger.info(f"XXXXX user {uid} and chapter {cid}") # working
+        
         async with aiohttp.ClientSession() as session:
             async with session.get(GET_TRANSCRIPT_URL) as response:
                 response.raise_for_status()  # Raise an exception for HTTP errors
@@ -258,7 +274,7 @@ async def run_multimodal_agent(ctx: JobContext, participant: rtc.RemoteParticipa
     logger.info("starting multimodal agent")
     
     # Make the POST request for transcripts/prompts
-    response = await get_transcript()  # Ensure this returns a dict with a string key, e.g., "transcript"
+    response = await get_transcript(ctx)  # Ensure this returns a dict with a string key, e.g., "transcript"
     if not response.get('response', {}):
         logger.error("No transcript found in response")
         return

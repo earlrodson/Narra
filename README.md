@@ -34,11 +34,6 @@ Set up the environment by copying `.env.example` to `.env.local` and filling in 
 - `LIVEKIT_API_SECRET`
 - `OPENAI_API_KEY`
 
-You can also do this automatically using the LiveKit CLI:
-
-```bash
-lk app env
-```
 
 Run the agent:
 
