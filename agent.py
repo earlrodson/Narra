@@ -65,10 +65,9 @@ conversation_history = []
 
 # FastAPI model for the request to generate story
 class TranscriptRequest(BaseModel):
-    userRoomId: str
-    chapterId: int
+    chapterId: str
     transcript: str
-    accountId: int
+    accountId: str
     timestamp: str
 
 # FastAPI model for the response
@@ -110,7 +109,9 @@ async def post_transcript(data: TranscriptRequest):
         logger.info(f"------------Formatted data: {formattedData}")
         
         requestData = {
-            "transcript": formattedData
+            "transcript": formattedData,
+            "id": data.accountId,
+            "chapter": data.chapterId
         }
         
         # Post the data to the other API
@@ -118,7 +119,7 @@ async def post_transcript(data: TranscriptRequest):
             async with session.post(POST_TRANSCRIP_URL, json=requestData) as response:
                 # Handle the response
                 if response.status == 200:
-                    logger.info("Request successful")
+                    logger.info(f"Request successful {requestData}")
                     return {"message": "Success", "data": await response.json()}
                 else:
                     logger.error(f"Request failed: {response.status}, {await response.text()}")
@@ -147,8 +148,6 @@ async def get_transcript(ctx: JobContext):
             print('cid:', cid)
         else:
             raise ValueError("Invalid room format")
-        
-        logger.info(f"XXXXX user {uid} and chapter {cid}") # working
         
         async with aiohttp.ClientSession() as session:
             async with session.get(GET_TRANSCRIPT_URL) as response:
@@ -279,7 +278,6 @@ async def run_multimodal_agent(ctx: JobContext, participant: rtc.RemoteParticipa
         logger.error("No transcript found in response")
         return
     
-    logger.info(f"response: {response.get('response', {}).get('prompt',{}).get('generated_prompt_text', '')}")
     generatedPromptText = response.get('response', {}).get('prompt',{}).get('generated_prompt_text', '')
     instructions = generatedPromptText.replace("\n\n", "\n").strip()
     instructions = instructions.replace("\n", "\n- ")
@@ -287,8 +285,8 @@ async def run_multimodal_agent(ctx: JobContext, participant: rtc.RemoteParticipa
     logger.info(f"formatted_instructions: {formatted_instructions}")
 
     model = livekit_openai.realtime.RealtimeModel(
-        instructions = formatted_instructions,
-        modalities=["audio", "text"],
+        instructions=formatted_instructions,
+        modalities=["audio", "text"]
     )
     agent = MultimodalAgent(model=model)
     agent.start(ctx.room, participant)
