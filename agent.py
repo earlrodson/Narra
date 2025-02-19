@@ -150,7 +150,8 @@ async def get_transcript(ctx: JobContext):
             raise ValueError("Invalid room format")
         
         async with aiohttp.ClientSession() as session:
-            async with session.get(GET_TRANSCRIPT_URL) as response:
+            transcriptUrl = f"{GET_TRANSCRIPT_URL}?chapter={cid}"
+            async with session.get(transcriptUrl) as response:
                 response.raise_for_status()  # Raise an exception for HTTP errors
                 return await response.json()  # Return the JSON response
     except aiohttp.ClientResponseError as e:
@@ -286,7 +287,8 @@ async def run_multimodal_agent(ctx: JobContext, participant: rtc.RemoteParticipa
 
     model = livekit_openai.realtime.RealtimeModel(
         instructions=formatted_instructions,
-        modalities=["audio", "text"]
+        modalities=["audio", "text"],
+        voice="shimmer"
     )
     agent = MultimodalAgent(model=model)
     agent.start(ctx.room, participant)
